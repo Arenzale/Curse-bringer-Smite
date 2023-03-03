@@ -1,0 +1,80 @@
+<drac2>
+
+ch = character()
+c = combat()
+com = c and c.me
+args = argparse(&ARGS&)
+targ = args.last('t')
+crit = [False,True][args.adv(custom={'adv':'crit'})]
+ignore_race = args.last('ignore', default=False)
+l = args.last('l')
+i = '-i' in &ARGS&
+if not l:
+  l = 1
+if not str(l).isdigit():
+  err(f"{l} is not a valid level of spellslot, make sure to use a number.")
+if int(l) > 9:
+  err(f"{l} is too high of a level for spellslots, make sure to use a number that is 9 or lower.")
+lvl = int(get("WarlockLevel",0))
+spell = ch.spellbook
+their = get("their","their")
+v = lvl > 1 or i
+base = f'''embed -thumb {image} -color {color} '''
+if len(&ARGS&) > 0 and &ARGS&[0] in "help?":
+  return f"""help {ctx.alias} -here"""
+
+# Checking if there are slots left to smite with.
+if v and not i:
+  if not spell.get_slots(l):
+    return base + f''' -title "{name} has no Spellslots of level {l} remaining!" '''
+# Checking the requirments
+if v:
+  # Adding the title and base.
+  base += f''' -title "{name} uses {their} cursed energy!" -desc "When you hit a creature with this weapon, you can expend a warlock spell slot to deal an additional 2d6 slashing damage to the target per spell level, and you can reduce the creature's speed to 0 feet until the end of your next turn." '''
+  # making the damage string. this way the base damage, the extra dice from higher levels and the extra die from a fiend or undead are all seperated.
+  damstr = '2d6'
+  if int(l) > 1:
+    # Making sure that there can't be more then 5 dice of damage for smite(exculting the extra dice)
+    damstr += "+" + str(min(int(l)-1,4)*2) + 'd6[magical slashing]'
+  # The extra damage die
+  # Adding the damage type
+  # dealing the damage if there is combat
+  if com and targ:
+    # Making a combatant from the target
+    tar = targ
+    targ = c.get_combatant(targ)
+    if not targ:
+      err(f"{tar} is not a valid target.")
+    targ_race = any(bad_type in targ.creature_type.lower() for bad_type in ['---', '----'])
+    if targ_race and not (ignore_race):
+      damstr += '+2d6'
+    # dealing the damage
+    dam = targ.damage(damstr,crit)
+    # Adding the dealt damage
+    base += f''' -f "{targ.name}|{dam.damage}" -footer "{targ.name}: {targ.hp_str()}" '''
+  # IF there is no combat or no target given showing the damage roll.
+  else:
+    if crit:
+      crit = 2
+    else:
+      crit = 1
+    dam = vroll(damstr,crit)
+    # If there is a target adding the damage with the target, otherwise just meta.
+    if targ:
+      base += f''' -f "{targ}|**Damage**: {dam}" '''
+    else:
+      base += f''' -f "Meta|**Damage**: {dam}" '''
+  # using the spellslot
+  if not i:
+    spell.use_slot(l)
+    return base + f''' -f "Spell Slots|{spell.slots_str(l)} (-1)" '''
+  if spell.get_slots(l):
+    base + f''' -f "Spell Slots|{spell.slots_str(l)}" '''
+  return base
+
+if lvl == 0:
+  base += f''' -title "{name} is not a paladin!" '''
+else:
+  base += f''' -title "{name} is not yet a level 2 paladin!" '''
+return base
+</drac2>
